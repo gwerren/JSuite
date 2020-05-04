@@ -1,0 +1,29 @@
+﻿namespace JSuite.Mapping.Parser.Tokenizing
+{
+    public enum TokenType
+    {
+        Comment,
+        QuotedItem,
+        Partial,
+        Variable,
+        LineContinuation,
+        NewLine,
+        Whitespace,
+        PartialAssignment,
+        Equals,
+        Dot,
+        OpenSquareBracket,
+        CloseSquareBracket,
+        OpenCurlyBracket,
+        CloseCurlyBracket,
+        Comma,
+        QuestionMark,
+        ExclaimationMark,
+        OpenRoundBracket,
+        CloseRoundBracket,
+        Colon,
+        WildCard,
+        Item,
+        String
+    }
+}
