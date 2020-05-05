@@ -10,6 +10,8 @@
         NewLine,
         Whitespace,
         PartialAssignment,
+        And,
+        Or,
         Equals,
         Dot,
         OpenSquareBracket,

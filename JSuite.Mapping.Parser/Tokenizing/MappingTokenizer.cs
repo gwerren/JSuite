@@ -14,6 +14,8 @@
                 .Token(TokenType.NewLine, @"[\r\n]+")
                 .Token(TokenType.Whitespace, @"[ \t]+")
                 .Token(TokenType.PartialAssignment, "::")
+                .Token(TokenType.And, "&&")
+                .Token(TokenType.Or, @"\|\|")
                 .Token(TokenType.Equals, "=")
                 .Token(TokenType.Dot, @"\.")
                 .Token(TokenType.OpenSquareBracket, @"\[")
