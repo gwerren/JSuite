@@ -1,4 +1,4 @@
-﻿namespace JSuite.Mapping.Parser.Parsing
+﻿namespace JSuite.Mapping.Parser.Parsing.Generic
 {
     public interface IParserRuleConfigurator<TToken, TRule>
     {
@@ -16,7 +16,7 @@
 
     public interface IParserRuleItemConfigurator<TToken, TRule>
     {
-        IParserRuleItemConfigurator<TToken, TRule> Flatten();
+        IParserRuleItemConfigurator<TToken, TRule> Hoist();
         IParserRuleContinuationConfigurator<TToken, TRule> Once();
         IParserRuleContinuationConfigurator<TToken, TRule> AtMostOnce();
         IParserRuleContinuationConfigurator<TToken, TRule> AtLeastOnce();

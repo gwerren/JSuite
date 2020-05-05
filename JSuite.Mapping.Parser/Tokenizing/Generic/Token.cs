@@ -1,4 +1,4 @@
-﻿namespace JSuite.Mapping.Parser.Tokenizing
+﻿namespace JSuite.Mapping.Parser.Tokenizing.Generic
 {
     public readonly struct Token<TType>
     {

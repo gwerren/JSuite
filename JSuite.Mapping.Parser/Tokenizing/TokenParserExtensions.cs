@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using JSuite.Mapping.Parser.Tokenizing.Generic;
 
     public static class TokenParserExtensions
     {

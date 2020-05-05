@@ -1,9 +1,9 @@
-﻿namespace JSuite.Mapping.Parser.Parsing
+﻿namespace JSuite.Mapping.Parser.Parsing.Generic
 {
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using JSuite.Mapping.Parser.Tokenizing;
+    using JSuite.Mapping.Parser.Tokenizing.Generic;
 
     public class Parser<TToken, TRule>
     {
@@ -204,7 +204,7 @@
 
                     protected RuleElement(RuleOption option) => this.option = option;
 
-                    protected bool Flatten { get; private set; }
+                    protected bool Hoist { get; private set; }
 
                     protected bool AllowZero
                         => this.occurrence == RuleElementOccurrence.AtMostOnce
@@ -220,9 +220,9 @@
                         IDictionary<TRule, RuleDefinition> rulesByType);
 
                     IParserRuleItemConfigurator<TToken, TRule>
-                        IParserRuleItemConfigurator<TToken, TRule>.Flatten()
+                        IParserRuleItemConfigurator<TToken, TRule>.Hoist()
                     {
-                        this.Flatten = true;
+                        this.Hoist = true;
                         return this;
                     }
 
@@ -328,9 +328,7 @@
                             }
                         }
 
-                        return this.Flatten
-                            ? matches.Tokens().ToList<IParseTree<TToken, TRule>>()
-                            : matches;
+                        return this.Hoist ? matches.Elements().ToList() : matches;
                     }
                 }
             }

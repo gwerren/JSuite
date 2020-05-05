@@ -1,6 +1,7 @@
 ﻿namespace JSuite.Mapping.Parser.Tokenizing
 {
     using System.Collections.Generic;
+    using JSuite.Mapping.Parser.Tokenizing.Generic;
 
     public static class MappingTokenizer
     {

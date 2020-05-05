@@ -1,8 +1,8 @@
-﻿namespace JSuite.Mapping.Parser.Parsing
+﻿namespace JSuite.Mapping.Parser.Parsing.Generic
 {
     using System.Collections.Generic;
     using System.Linq;
-    using JSuite.Mapping.Parser.Tokenizing;
+    using JSuite.Mapping.Parser.Tokenizing.Generic;
 
     public interface IParseTree<TToken, TRule>
     {
@@ -47,5 +47,22 @@
         public static IEnumerable<IParseTreeToken<TToken, TRule>> Tokens<TToken, TRule>(
             this IParseTree<TToken, TRule> node)
             => new[] { node }.Tokens();
+
+        public static IEnumerable<IParseTree<TToken, TRule>> Elements<TToken, TRule>(
+            this IEnumerable<IParseTree<TToken, TRule>> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                if (node is IParseTreeToken<TToken, TRule>)
+                {
+                    yield return node;
+                }
+                else if (node is IParseTreeRule<TToken, TRule> ruleNode)
+                {
+                    foreach (var element in ruleNode.Elements)
+                        yield return element;
+                }
+            }
+        }
     }
 }

@@ -1,10 +1,10 @@
-﻿namespace JSuite.Mapping.Parser.Tokenizing
+﻿namespace JSuite.Mapping.Parser.Tokenizing.Generic
 {
     using System.Collections.Generic;
     using System.Linq;
     using System.Text.RegularExpressions;
 
-    internal class Tokenizer<TType>
+    public class Tokenizer<TType>
     {
         private readonly IList<TokenType> tokenTypes = new List<TokenType>();
         private readonly TType defaultTokenType;
