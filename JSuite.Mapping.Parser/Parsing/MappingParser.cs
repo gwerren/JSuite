@@ -16,12 +16,14 @@
             = new Parser<TokenType, ParserRuleType>().Configure();
 
         public static IParseTree<TokenType, ParserRuleType> Parse(
-            this IList<Token<TokenType>> tokens)
-            => Parser.Parse(tokens);
+            this IList<Token<TokenType>> tokens,
+            TextIndexToLineColumnTranslator indexConverter)
+            => Parser.Parse(tokens, indexConverter);
 
         public static IEnumerable<IParseTree<TokenType, ParserRuleType>> Parse(
-            this IEnumerable<IList<Token<TokenType>>> tokens)
-            => tokens.Select(Parser.Parse);
+            this IEnumerable<IList<Token<TokenType>>> tokens,
+            TextIndexToLineColumnTranslator indexConverter)
+            => tokens.Select(o => Parser.Parse(o, indexConverter));
 
         private static Parser<TokenType, TRule> RuleMatchNoneOf<TRule>(
             this Parser<TokenType, TRule> parser,

@@ -19,7 +19,11 @@
 
         public IEnumerable<Token<TType>> Tokenize(string input)
         {
-            IEnumerable<Token<TType>> tokens = new[] { new Token<TType>(this.defaultTokenType, input ?? string.Empty) };
+            IEnumerable<Token<TType>> tokens = new[]
+            {
+                new Token<TType>(this.defaultTokenType, input ?? string.Empty, 0)
+            };
+
             foreach (var type in this.tokenTypes)
                 tokens = this.ExtractTokenType(tokens, type);
 
@@ -51,22 +55,14 @@
                 foreach (Match match in matches)
                 {
                     if (currentIndex < match.Index)
-                    {
-                        yield return new Token<TType>(
-                            this.defaultTokenType,
-                            token.Value.Substring(currentIndex, match.Index - currentIndex));
-                    }
+                        yield return token.SubToken(currentIndex, match.Index - currentIndex);
 
-                    yield return new Token<TType>(tokenType, match.Value);
+                    yield return token.SubToken(match.Index, match.Length, tokenType);
                     currentIndex = match.Index + match.Length;
                 }
 
                 if (currentIndex < token.Value.Length)
-                {
-                    yield return new Token<TType>(
-                        this.defaultTokenType,
-                        token.Value.Substring(currentIndex, token.Value.Length - currentIndex));
-                }
+                    yield return token.SubToken(currentIndex, token.Value.Length - currentIndex);
             }
         }
 

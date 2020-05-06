@@ -82,14 +82,32 @@
             return this;
         }
 
-        public IParseTree<TToken, TRule> Parse(IList<Token<TToken>> tokens)
+        public IParseTree<TToken, TRule> Parse(IList<Token<TToken>> tokens, TextIndexToLineColumnTranslator indexConverter)
         {
             if (!this.configCompleted)
-                throw new ApplicationException("Configuration has not been completed.");
+                throw new ApplicationException("Parser configuration has not been completed.");
 
             var parseTree = this.rulesByType[this.rootType].TryParse(tokens, 0, this.rulesByType);
-            if (!parseTree.MatchFound || parseTree.MatchedTokenCount != tokens.Count)
-                throw new ApplicationException($"Failed to match rule '{this.rootType}'.");
+            if (parseTree.IsError || parseTree.NextTokenIndex != tokens.Count)
+            {
+                if (parseTree.NextTokenIndex < 0 || parseTree.NextTokenIndex >= tokens.Count)
+                    throw new ApplicationException("An unexpected error was encountered.");
+
+                var badToken = tokens[parseTree.NextTokenIndex];
+                string locationText;
+                if (indexConverter == null)
+                {
+                    locationText = "index " + badToken.StartIndex;
+                }
+                else
+                {
+                    var location = indexConverter.Translate(badToken.StartIndex);
+                    locationText = $"line {location.Line}, column {location.Column}";
+                }
+
+                throw new ApplicationException(
+                    $"Unexpected token type '{badToken.Type}' found at {locationText} with value '{badToken.Value}'.");
+            }
 
             return parseTree.TreeItems;
         }
@@ -131,14 +149,18 @@
                 int matchFrom,
                 IDictionary<TRule, RuleDefinition> rulesByType)
             {
+                var maxNextToken = matchFrom;
                 foreach (var option in this.options)
                 {
                     var parseTree = option.TryParse(tokens, matchFrom, rulesByType);
-                    if (parseTree.MatchFound)
+                    if (!parseTree.IsError)
                         return parseTree;
+
+                    if (parseTree.NextTokenIndex > maxNextToken)
+                        maxNextToken = parseTree.NextTokenIndex;
                 }
 
-                return default;
+                return RuleOptionResult.Error(maxNextToken);
             }
 
             private class RuleOption : IParserRuleContinuationConfigurator<TToken, TRule>
@@ -181,30 +203,25 @@
                     IDictionary<TRule, RuleDefinition> rulesByType)
                 {
                     var elementTrees = new List<IParseTree<TToken, TRule>>();
-                    var matchedTokenCount = 0;
                     foreach (var element in this.elements)
                     {
                         var parseTreeNodes = element.TryParse(tokens, matchFrom, rulesByType);
-                        if (!parseTreeNodes.MatchFound)
-                            return default;
+                        if (parseTreeNodes.IsError)
+                            return RuleOptionResult.Error(parseTreeNodes.NextTokenIndex);
 
                         if (parseTreeNodes.HasTreeItems)
                             elementTrees.AddRange(parseTreeNodes.TreeItems);
 
-                        matchFrom += parseTreeNodes.MatchedTokenCount;
-                        matchedTokenCount += parseTreeNodes.MatchedTokenCount;
+                        matchFrom = parseTreeNodes.NextTokenIndex;
                     }
 
-                    return new ParseTreeResult<IParseTree<TToken, TRule>>(
-                        matchedTokenCount,
-                        new ParseTreeRule(this.ruleType, elementTrees));
+                    return RuleOptionResult.NonEmpty(
+                        new ParseTreeRule(this.ruleType, elementTrees),
+                        matchFrom);
                 }
 
                 private abstract class RuleElement : IParserRuleItemConfigurator<TToken, TRule>
                 {
-                    protected static readonly ParseTreeResult<IList<IParseTree<TToken, TRule>>> Empty
-                        = new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(0);
-
                     private readonly RuleOption option;
                     private RuleElementOccurrence occurrence;
 
@@ -273,28 +290,34 @@
                         IDictionary<TRule, RuleDefinition> rulesByType)
                     {
                         if (matchFrom >= tokens.Count)
-                            return this.AllowZero ? Empty : default;
+                        {
+                            return this.AllowZero
+                                ? RuleElementResult.Empty(matchFrom)
+                                : RuleElementResult.Error(matchFrom);
+                        }
 
                         if (!tokens[matchFrom].Type.Equals(this.tokenType))
-                            return this.AllowZero ? Empty : default;
+                        {
+                            return this.AllowZero
+                                ? RuleElementResult.Empty(matchFrom)
+                                : RuleElementResult.Error(matchFrom);
+                        }
 
                         var matches = this.exclude
                             ? null
                             : new List<IParseTree<TToken, TRule>> { new ParseTreeToken(tokens[matchFrom]) };
 
-                        var matchedTokenCount = 1;
+                        ++matchFrom;
                         if (this.AllowMany)
                         {
-                            ++matchFrom;
                             while (matchFrom < tokens.Count && tokens[matchFrom].Type.Equals(this.tokenType))
                             {
                                 matches?.Add(new ParseTreeToken(tokens[matchFrom]));
                                 ++matchFrom;
-                                ++matchedTokenCount;
                             }
                         }
 
-                        return new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(matchedTokenCount, matches);
+                        return RuleElementResult.NonEmpty(matches, matchFrom);
                     }
                 }
 
@@ -321,41 +344,47 @@
                         IDictionary<TRule, RuleDefinition> rulesByType)
                     {
                         if (matchFrom >= tokens.Count)
-                            return this.AllowZero ? Empty : default;
+                        {
+                            return this.AllowZero
+                                ? RuleElementResult.Empty(matchFrom)
+                                : RuleElementResult.Error(matchFrom);
+                        }
 
                         var currentParseTree = rulesByType[this.RuleType]
                             .TryParse(tokens, matchFrom, rulesByType);
 
-                        if (!currentParseTree.MatchFound)
-                            return this.AllowZero ? Empty : default;
+                        if (currentParseTree.IsError)
+                        {
+                            return this.AllowZero
+                                ? RuleElementResult.Empty(matchFrom)
+                                : RuleElementResult.Error(currentParseTree.NextTokenIndex);
+                        }
 
                         var matches = new List<IParseTree<TToken, TRule>>();
                         if (currentParseTree.HasTreeItems)
                             matches.Add(currentParseTree.TreeItems);
 
-                        var matchedTokenCount = currentParseTree.MatchedTokenCount;
+                        matchFrom = currentParseTree.NextTokenIndex;
                         if (this.AllowMany)
                         {
-                            matchFrom += currentParseTree.MatchedTokenCount;
                             while (matchFrom < tokens.Count)
                             {
                                 currentParseTree = rulesByType[this.RuleType]
                                     .TryParse(tokens, matchFrom, rulesByType);
 
-                                if (!currentParseTree.MatchFound)
+                                if (currentParseTree.IsError)
                                     break;
 
                                 if (currentParseTree.HasTreeItems)
                                     matches.Add(currentParseTree.TreeItems);
 
-                                matchedTokenCount += currentParseTree.MatchedTokenCount;
-                                matchFrom += currentParseTree.MatchedTokenCount;
+                                matchFrom = currentParseTree.NextTokenIndex;
                             }
                         }
 
-                        return new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(
-                            matchedTokenCount,
-                            this.hoist ? matches.Elements().ToList() : matches);
+                        return RuleElementResult.NonEmpty(
+                            this.hoist ? matches.Elements().ToList() : matches,
+                            matchFrom);
                     }
                 }
             }
@@ -381,22 +410,50 @@
             public Token<TToken> Token { get; }
         }
 
+        private static class RuleElementResult
+        {
+            public static ParseTreeResult<IList<IParseTree<TToken, TRule>>> Empty(
+                int nextTokenIndex)
+                => new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(false, nextTokenIndex);
+
+            public static ParseTreeResult<IList<IParseTree<TToken, TRule>>> NonEmpty(
+                IList<IParseTree<TToken, TRule>> treeItems,
+                int nextTokenIndex)
+                => new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(false, nextTokenIndex, treeItems);
+
+            public static ParseTreeResult<IList<IParseTree<TToken, TRule>>> Error(
+                int nextTokenIndex)
+                => new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(true, nextTokenIndex);
+        }
+
+        private static class RuleOptionResult
+        {
+            public static ParseTreeResult<IParseTree<TToken, TRule>> NonEmpty(
+                IParseTree<TToken, TRule> treeItem,
+                int nextTokenIndex)
+                => new ParseTreeResult<IParseTree<TToken, TRule>>(false, nextTokenIndex, treeItem);
+
+            public static ParseTreeResult<IParseTree<TToken, TRule>> Error(
+                int nextTokenIndex)
+                => new ParseTreeResult<IParseTree<TToken, TRule>>(true, nextTokenIndex);
+        }
+
         private readonly struct ParseTreeResult<T>
             where T: class
         {
-            public ParseTreeResult(int matchedTokenCount, T treeItems = null)
+            public ParseTreeResult(bool isError, int nextTokenIndex, T treeItems = null)
             {
-                this.MatchFound = true;
-                this.HasTreeItems = treeItems != null && matchedTokenCount != 0;
-                this.MatchedTokenCount = matchedTokenCount;
+                this.IsError = isError;
+                this.HasTreeItems = treeItems != null;
+                this.NextTokenIndex = nextTokenIndex;
                 this.TreeItems = treeItems;
             }
 
-            public bool MatchFound { get; }
+            public bool IsError { get; }
 
             public bool HasTreeItems { get; }
 
-            public int MatchedTokenCount { get; }
+            public int NextTokenIndex { get; }
 
             public T TreeItems { get; }
         }

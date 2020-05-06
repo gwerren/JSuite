@@ -22,10 +22,10 @@
             {
                 if (token.Type == TokenType.QuotedItem)
                 {
-                    yield return
-                        new Token<TokenType>(
-                            TokenType.QuotedItem,
-                            token.Value.Substring(1, token.Value.Length - 2).Replace("\"\"", "\""));
+                    yield return token.WithNewValue(
+                        token.Value
+                            .Substring(1, token.Value.Length - 2)
+                            .Replace("\"\"", "\""));
                 }
                 else
                 {
