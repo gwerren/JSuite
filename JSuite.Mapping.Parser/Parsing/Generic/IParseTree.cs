@@ -1,13 +1,9 @@
 ﻿namespace JSuite.Mapping.Parser.Parsing.Generic
 {
     using System.Collections.Generic;
-    using System.Linq;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
 
-    public interface IParseTree<TToken, TRule>
-    {
-        int CapturedTokenCount { get; }
-    }
+    public interface IParseTree<TToken, TRule> { }
 
     public interface IParseTreeRule<TToken, TRule> : IParseTree<TToken, TRule>
     {
@@ -23,10 +19,6 @@
 
     public static class ParseTreeExtensions
     {
-        public static int CapturedTokenCount<TToken, TRule>(
-            this IEnumerable<IParseTree<TToken, TRule>> nodes)
-            => nodes.Select(o => o.CapturedTokenCount).DefaultIfEmpty(0).Sum();
-
         public static IEnumerable<IParseTreeToken<TToken, TRule>> Tokens<TToken, TRule>(
             this IEnumerable<IParseTree<TToken, TRule>> nodes)
         {

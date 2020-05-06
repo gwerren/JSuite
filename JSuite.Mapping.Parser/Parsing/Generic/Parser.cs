@@ -88,10 +88,10 @@
                 throw new ApplicationException("Configuration has not been completed.");
 
             var parseTree = this.rulesByType[this.rootType].TryParse(tokens, 0, this.rulesByType);
-            if (parseTree == null || parseTree.CapturedTokenCount != tokens.Count)
+            if (!parseTree.MatchFound || parseTree.MatchedTokenCount != tokens.Count)
                 throw new ApplicationException($"Failed to match rule '{this.rootType}'.");
 
-            return parseTree;
+            return parseTree.TreeItems;
         }
 
         private enum RuleElementOccurrence
@@ -109,14 +109,14 @@
 
             public RuleDefinition(TRule ruleType) { this.ruleType = ruleType; }
 
-            public IParserRuleItemConfigurator<TToken, TRule> With(TToken type)
+            public IParserRuleTokenItemConfigurator<TToken, TRule> With(TToken type)
             {
                 var option = new RuleOption(this.ruleType);
                 this.options.Add(option);
                 return option.AddElement(type);
             }
 
-            public IParserRuleItemConfigurator<TToken, TRule> With(TRule type)
+            public IParserRuleRuleItemConfigurator<TToken, TRule> With(TRule type)
             {
                 var option = new RuleOption(this.ruleType);
                 this.options.Add(option);
@@ -126,7 +126,7 @@
             public IEnumerable<TRule> DirectlyDependsOn()
                 => this.options.SelectMany(o => o.DirectlyDependsOn());
 
-            public IParseTree<TToken, TRule> TryParse(
+            public ParseTreeResult<IParseTree<TToken, TRule>> TryParse(
                 IList<Token<TToken>> tokens,
                 int matchFrom,
                 IDictionary<TRule, RuleDefinition> rulesByType)
@@ -134,11 +134,11 @@
                 foreach (var option in this.options)
                 {
                     var parseTree = option.TryParse(tokens, matchFrom, rulesByType);
-                    if (parseTree != null)
+                    if (parseTree.MatchFound)
                         return parseTree;
                 }
 
-                return null;
+                return default;
             }
 
             private class RuleOption : IParserRuleContinuationConfigurator<TToken, TRule>
@@ -148,22 +148,22 @@
 
                 public RuleOption(TRule ruleType) { this.ruleType = ruleType; }
 
-                IParserRuleItemConfigurator<TToken, TRule>
+                IParserRuleTokenItemConfigurator<TToken, TRule>
                     IParserRuleContinuationConfigurator<TToken, TRule>.Then(TToken type)
                     => this.AddElement(type);
 
-                IParserRuleItemConfigurator<TToken, TRule>
+                IParserRuleRuleItemConfigurator<TToken, TRule>
                     IParserRuleContinuationConfigurator<TToken, TRule>.Then(TRule type)
                     => this.AddElement(type);
 
-                public IParserRuleItemConfigurator<TToken, TRule> AddElement(TToken type)
+                public IParserRuleTokenItemConfigurator<TToken, TRule> AddElement(TToken type)
                 {
                     var element = new RuleTokenElement(type, this);
                     this.elements.Add(element);
                     return element;
                 }
 
-                public IParserRuleItemConfigurator<TToken, TRule> AddElement(TRule type)
+                public IParserRuleRuleItemConfigurator<TToken, TRule> AddElement(TRule type)
                 {
                     var element = new RuleSubRuleElement(type, this);
                     this.elements.Add(element);
@@ -175,36 +175,40 @@
                         .OfType<RuleSubRuleElement>()
                         .Select(o => o.RuleType);
 
-                public IParseTree<TToken, TRule> TryParse(
+                public ParseTreeResult<IParseTree<TToken, TRule>> TryParse(
                     IList<Token<TToken>> tokens,
                     int matchFrom,
                     IDictionary<TRule, RuleDefinition> rulesByType)
                 {
                     var elementTrees = new List<IParseTree<TToken, TRule>>();
+                    var matchedTokenCount = 0;
                     foreach (var element in this.elements)
                     {
                         var parseTreeNodes = element.TryParse(tokens, matchFrom, rulesByType);
-                        if (parseTreeNodes == null)
-                            return null;
+                        if (!parseTreeNodes.MatchFound)
+                            return default;
 
-                        elementTrees.AddRange(parseTreeNodes);
-                        matchFrom += parseTreeNodes.CapturedTokenCount();
+                        if (parseTreeNodes.HasTreeItems)
+                            elementTrees.AddRange(parseTreeNodes.TreeItems);
+
+                        matchFrom += parseTreeNodes.MatchedTokenCount;
+                        matchedTokenCount += parseTreeNodes.MatchedTokenCount;
                     }
 
-                    return new ParseTreeRule(this.ruleType, elementTrees);
+                    return new ParseTreeResult<IParseTree<TToken, TRule>>(
+                        matchedTokenCount,
+                        new ParseTreeRule(this.ruleType, elementTrees));
                 }
 
                 private abstract class RuleElement : IParserRuleItemConfigurator<TToken, TRule>
                 {
-                    protected static readonly IList<IParseTree<TToken, TRule>> Empty
-                        = new IParseTree<TToken, TRule>[0];
+                    protected static readonly ParseTreeResult<IList<IParseTree<TToken, TRule>>> Empty
+                        = new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(0);
 
                     private readonly RuleOption option;
                     private RuleElementOccurrence occurrence;
 
                     protected RuleElement(RuleOption option) => this.option = option;
-
-                    protected bool Hoist { get; private set; }
 
                     protected bool AllowZero
                         => this.occurrence == RuleElementOccurrence.AtMostOnce
@@ -214,17 +218,10 @@
                         => this.occurrence == RuleElementOccurrence.AtLeastOnce
                             || this.occurrence == RuleElementOccurrence.ZeroOrMore;
 
-                    public abstract IList<IParseTree<TToken, TRule>> TryParse(
+                    public abstract ParseTreeResult<IList<IParseTree<TToken, TRule>>> TryParse(
                         IList<Token<TToken>> tokens,
                         int matchFrom,
                         IDictionary<TRule, RuleDefinition> rulesByType);
-
-                    IParserRuleItemConfigurator<TToken, TRule>
-                        IParserRuleItemConfigurator<TToken, TRule>.Hoist()
-                    {
-                        this.Hoist = true;
-                        return this;
-                    }
 
                     IParserRuleContinuationConfigurator<TToken, TRule>
                         IParserRuleItemConfigurator<TToken, TRule>.Once()
@@ -255,80 +252,110 @@
                     }
                 }
 
-                private class RuleTokenElement : RuleElement
+                private class RuleTokenElement : RuleElement, IParserRuleTokenItemConfigurator<TToken, TRule>
                 {
                     private readonly TToken tokenType;
+                    private bool exclude;
 
                     public RuleTokenElement(TToken tokenType, RuleOption option)
                         : base(option)
                         => this.tokenType = tokenType;
 
-                    public override IList<IParseTree<TToken, TRule>> TryParse(
+                    public IParserRuleTokenItemConfigurator<TToken, TRule> Exclude()
+                    {
+                        this.exclude = true;
+                        return this;
+                    }
+
+                    public override ParseTreeResult<IList<IParseTree<TToken, TRule>>> TryParse(
                         IList<Token<TToken>> tokens,
                         int matchFrom,
                         IDictionary<TRule, RuleDefinition> rulesByType)
                     {
                         if (matchFrom >= tokens.Count)
-                            return this.AllowZero ? Empty : null;
+                            return this.AllowZero ? Empty : default;
 
                         if (!tokens[matchFrom].Type.Equals(this.tokenType))
-                            return this.AllowZero ? Empty : null;
+                            return this.AllowZero ? Empty : default;
 
-                        var matches = new List<IParseTree<TToken, TRule>> { new ParseTreeToken(tokens[matchFrom]) };
+                        var matches = this.exclude
+                            ? null
+                            : new List<IParseTree<TToken, TRule>> { new ParseTreeToken(tokens[matchFrom]) };
+
+                        var matchedTokenCount = 1;
                         if (this.AllowMany)
                         {
                             ++matchFrom;
                             while (matchFrom < tokens.Count && tokens[matchFrom].Type.Equals(this.tokenType))
                             {
-                                matches.Add(new ParseTreeToken(tokens[matchFrom]));
+                                matches?.Add(new ParseTreeToken(tokens[matchFrom]));
                                 ++matchFrom;
+                                ++matchedTokenCount;
                             }
                         }
 
-                        return matches;
+                        return new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(matchedTokenCount, matches);
                     }
                 }
 
-                private class RuleSubRuleElement : RuleElement
+                private class RuleSubRuleElement : RuleElement, IParserRuleRuleItemConfigurator<TToken, TRule>
                 {
+                    private bool hoist;
+
                     public RuleSubRuleElement(TRule ruleType, RuleOption option)
                         : base(option)
                         => this.RuleType = ruleType;
 
                     public TRule RuleType { get; }
 
-                    public override IList<IParseTree<TToken, TRule>> TryParse(
+                    IParserRuleRuleItemConfigurator<TToken, TRule>
+                        IParserRuleRuleItemConfigurator<TToken, TRule>.Hoist()
+                    {
+                        this.hoist = true;
+                        return this;
+                    }
+
+                    public override ParseTreeResult<IList<IParseTree<TToken, TRule>>> TryParse(
                         IList<Token<TToken>> tokens,
                         int matchFrom,
                         IDictionary<TRule, RuleDefinition> rulesByType)
                     {
                         if (matchFrom >= tokens.Count)
-                            return this.AllowZero ? Empty : null;
+                            return this.AllowZero ? Empty : default;
 
                         var currentParseTree = rulesByType[this.RuleType]
                             .TryParse(tokens, matchFrom, rulesByType);
 
-                        if (currentParseTree == null)
-                            return this.AllowZero ? Empty : null;
+                        if (!currentParseTree.MatchFound)
+                            return this.AllowZero ? Empty : default;
 
-                        var matches = new List<IParseTree<TToken, TRule>> { currentParseTree };
+                        var matches = new List<IParseTree<TToken, TRule>>();
+                        if (currentParseTree.HasTreeItems)
+                            matches.Add(currentParseTree.TreeItems);
+
+                        var matchedTokenCount = currentParseTree.MatchedTokenCount;
                         if (this.AllowMany)
                         {
-                            matchFrom += currentParseTree.CapturedTokenCount;
+                            matchFrom += currentParseTree.MatchedTokenCount;
                             while (matchFrom < tokens.Count)
                             {
                                 currentParseTree = rulesByType[this.RuleType]
                                     .TryParse(tokens, matchFrom, rulesByType);
 
-                                if (currentParseTree == null)
+                                if (!currentParseTree.MatchFound)
                                     break;
 
-                                matches.Add(currentParseTree);
-                                matchFrom += currentParseTree.CapturedTokenCount;
+                                if (currentParseTree.HasTreeItems)
+                                    matches.Add(currentParseTree.TreeItems);
+
+                                matchedTokenCount += currentParseTree.MatchedTokenCount;
+                                matchFrom += currentParseTree.MatchedTokenCount;
                             }
                         }
 
-                        return this.Hoist ? matches.Elements().ToList() : matches;
+                        return new ParseTreeResult<IList<IParseTree<TToken, TRule>>>(
+                            matchedTokenCount,
+                            this.hoist ? matches.Elements().ToList() : matches);
                     }
                 }
             }
@@ -340,10 +367,7 @@
             {
                 this.RuleType = ruleType;
                 this.Elements = elements;
-                this.CapturedTokenCount = elements.CapturedTokenCount();
             }
-
-            public int CapturedTokenCount { get; }
 
             public TRule RuleType { get; }
 
@@ -354,9 +378,27 @@
         {
             public ParseTreeToken(Token<TToken> token) { this.Token = token; }
 
-            public int CapturedTokenCount { get; } = 1;
-
             public Token<TToken> Token { get; }
+        }
+
+        private readonly struct ParseTreeResult<T>
+            where T: class
+        {
+            public ParseTreeResult(int matchedTokenCount, T treeItems = null)
+            {
+                this.MatchFound = true;
+                this.HasTreeItems = treeItems != null && matchedTokenCount != 0;
+                this.MatchedTokenCount = matchedTokenCount;
+                this.TreeItems = treeItems;
+            }
+
+            public bool MatchFound { get; }
+
+            public bool HasTreeItems { get; }
+
+            public int MatchedTokenCount { get; }
+
+            public T TreeItems { get; }
         }
     }
 }

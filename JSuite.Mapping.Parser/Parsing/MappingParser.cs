@@ -13,16 +13,7 @@
             = Enum.GetValues(typeof(TokenType)).Cast<TokenType>().ToList();
 
         private static readonly Parser<TokenType, ParserRuleType> Parser
-            = new Parser<TokenType, ParserRuleType>()
-                .Rule(
-                    ParserRuleType.Mapping,
-                    o => o
-                        .With(ParserRuleType.Target).AtMostOnce()
-                        .Then(TokenType.Equals).Once()
-                        .Then(ParserRuleType.Source).AtMostOnce())
-                .ConfigureTarget()
-                .ConfigureSource()
-                .WithRoot(ParserRuleType.Mapping);
+            = new Parser<TokenType, ParserRuleType>().Configure();
 
         public static IParseTree<TokenType, ParserRuleType> Parse(
             this IList<Token<TokenType>> tokens)
@@ -40,6 +31,19 @@
             return parser.RuleMatchOneOf(type, AllTokenTypes.Except(tokens).ToArray());
         }
 
+        private static Parser<TokenType, ParserRuleType> Configure(
+            this Parser<TokenType, ParserRuleType> parser)
+            => parser
+                .Rule(
+                    ParserRuleType.Mapping,
+                    o => o
+                        .With(ParserRuleType.Target).AtMostOnce()
+                        .Then(TokenType.Equals).Exclude().Once()
+                        .Then(ParserRuleType.Source).AtMostOnce())
+                .ConfigureTarget()
+                .ConfigureSource()
+                .WithRoot(ParserRuleType.Mapping);
+
         private static Parser<TokenType, ParserRuleType> ConfigureTarget(
             this Parser<TokenType, ParserRuleType> parser)
         {
@@ -47,8 +51,8 @@
                 .Rule(
                     ParserRuleType.Target,
                     o => o
-                        .With(ParserRuleType.TFirstNode).Once()
-                        .Then(ParserRuleType.TSubsequentNode).ZeroOrMore())
+                        .With(ParserRuleType.TFirstNode).Hoist().Once()
+                        .Then(ParserRuleType.TSubsequentNode).Hoist().ZeroOrMore())
                 .Rule(
                     ParserRuleType.TFirstNode,
                     o => o.With(ParserRuleType.TNode).Once(),
@@ -56,14 +60,14 @@
                 .Rule(
                     ParserRuleType.TSubsequentNode,
                     o => o
-                        .With(TokenType.Dot).Once()
+                        .With(TokenType.Dot).Exclude().Once()
                         .Then(ParserRuleType.TNode).Once(),
                     o => o.With(ParserRuleType.TIndexedNode).Once())
                 .Rule(
                     ParserRuleType.TNode,
                     o => o
                         .With(ParserRuleType.TPathElement).Once()
-                        .Then(ParserRuleType.TNodeModifiers).Once())
+                        .Then(ParserRuleType.TNodeModifiers).Hoist().Once())
                 .Rule(
                     ParserRuleType.TPathElement,
                     o => o.With(TokenType.Item).Once(),
@@ -71,10 +75,10 @@
                 .Rule(
                     ParserRuleType.TIndexedNode,
                     o => o
-                        .With(TokenType.OpenSquareBracket).Once()
+                        .With(TokenType.OpenSquareBracket).Exclude().Once()
                         .Then(ParserRuleType.TIndexedNodeContent).ZeroOrMore()
-                        .Then(TokenType.CloseSquareBracket).Once()
-                        .Then(ParserRuleType.TNodeModifiers).Once())
+                        .Then(TokenType.CloseSquareBracket).Exclude().Once()
+                        .Then(ParserRuleType.TNodeModifiers).Hoist().Once())
                 .RuleMatchNoneOf(
                     ParserRuleType.TIndexedNodeContent,
                     TokenType.CloseSquareBracket)
@@ -83,42 +87,42 @@
                     o => o
                         .With(ParserRuleType.TPropertyValue).AtMostOnce()
                         .Then(ParserRuleType.TConditionalModifier).AtMostOnce())
-                .Rule(
+                .RuleMatchOneOf(
                     ParserRuleType.TConditionalModifier,
-                    o => o.With(TokenType.QuestionMark).Once(),
-                    o => o.With(TokenType.ExclaimationMark).Once())
+                    TokenType.QuestionMark,
+                    TokenType.ExclaimationMark)
                 .Rule(
                     ParserRuleType.TPropertyValue,
                     o => o
-                        .With(TokenType.OpenCurlyBracket).Once()
-                        .Then(ParserRuleType.TPropertyValueAssignments).Once()
-                        .Then(TokenType.CloseCurlyBracket).Once())
-                .Rule(
-                    ParserRuleType.TPropertyValueAssignments,
-                    o => o
-                        .With(ParserRuleType.TPropertyValueAssignment).Once()
-                        .Then(ParserRuleType.TPropertyValueSubsequentAssignment).ZeroOrMore())
+                        .With(TokenType.OpenCurlyBracket).Exclude().Once()
+                        .Then(ParserRuleType.TPropertyValueAssignment).Once()
+                        .Then(ParserRuleType.TPropertyValueSubsequentAssignment).Hoist().ZeroOrMore()
+                        .Then(TokenType.CloseCurlyBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.TPropertyValueAssignment,
                     o => o
-                        .With(ParserRuleType.TPropertyValuePathElement).Once()
-                        .Then(ParserRuleType.TPropertyValuePathSubsequentElement).ZeroOrMore()
-                        .Then(TokenType.Colon).Once()
+                        .With(ParserRuleType.TPropertyValuePath).Once()
+                        .Then(TokenType.Colon).Exclude().Once()
                         .Then(TokenType.Variable).Once())
                 .Rule(
                     ParserRuleType.TPropertyValueSubsequentAssignment,
                     o => o
-                        .With(TokenType.Comma).Once()
+                        .With(TokenType.Comma).Exclude().Once()
                         .Then(ParserRuleType.TPropertyValueAssignment).Once())
                 .Rule(
+                    ParserRuleType.TPropertyValuePath,
+                    o => o
+                        .With(ParserRuleType.TPropertyValuePathElement).Hoist().Once()
+                        .Then(ParserRuleType.TPropertyValuePathSubsequentElement).Hoist().ZeroOrMore())
+                .RuleMatchOneOf(
                     ParserRuleType.TPropertyValuePathElement,
-                    o => o.With(TokenType.Item).Once(),
-                    o => o.With(TokenType.QuotedItem).Once(),
-                    o => o.With(TokenType.Variable).Once())
+                    TokenType.Item,
+                    TokenType.QuotedItem,
+                    TokenType.Variable)
                 .Rule(
                     ParserRuleType.TPropertyValuePathSubsequentElement,
-                    o => o.With(TokenType.Dot).Once(),
-                    o => o.With(ParserRuleType.TPropertyValuePathElement).Once());
+                    o => o.With(TokenType.Dot).Exclude().Once(),
+                    o => o.With(ParserRuleType.TPropertyValuePathElement).Hoist().Once());
         }
 
         private static Parser<TokenType, ParserRuleType> ConfigureSource(
@@ -128,8 +132,8 @@
                 .Rule(
                     ParserRuleType.Source,
                     o => o
-                        .With(ParserRuleType.SFirstNode).Once()
-                        .Then(ParserRuleType.SSubsequentNode).ZeroOrMore())
+                        .With(ParserRuleType.SFirstNode).Hoist().Once()
+                        .Then(ParserRuleType.SSubsequentNode).Hoist().ZeroOrMore())
                 .Rule(
                     ParserRuleType.SFirstNode,
                     o => o.With(ParserRuleType.SNode).Once(),
@@ -137,7 +141,7 @@
                 .Rule(
                     ParserRuleType.SSubsequentNode,
                     o => o
-                        .With(TokenType.Dot).Once()
+                        .With(TokenType.Dot).Exclude().Once()
                         .Then(ParserRuleType.SNode).Once(),
                     o => o.With(ParserRuleType.SIndexedNode).Once())
                 .Rule(
@@ -147,10 +151,10 @@
                 .Rule(
                     ParserRuleType.SIndexedNode,
                     o => o
-                        .With(TokenType.OpenSquareBracket).Once()
+                        .With(TokenType.OpenSquareBracket).Exclude().Once()
                         .Then(ParserRuleType.SIndexedNodeContent).Once()
-                        .Then(ParserRuleType.SIndexedNodeSubsequentContent).ZeroOrMore()
-                        .Then(TokenType.CloseSquareBracket).Once())
+                        .Then(ParserRuleType.SIndexedNodeSubsequentContent).Hoist().ZeroOrMore()
+                        .Then(TokenType.CloseSquareBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.SIndexedNodeContent,
                     o => o
@@ -160,20 +164,20 @@
                 .Rule(
                     ParserRuleType.SIndexedNodeSubsequentContent,
                     o => o
-                        .With(TokenType.Comma).Once()
+                        .With(TokenType.Comma).Exclude().Once()
                         .Then(ParserRuleType.SIndexedNodeContent).Once())
                 .Rule(
                     ParserRuleType.SPropertyValueCapture,
                     o => o
-                        .With(TokenType.OpenRoundBracket).Once()
-                        .Then(TokenType.Colon).Once()
+                        .With(TokenType.OpenRoundBracket).Exclude().Once()
+                        .Then(TokenType.Colon).Exclude().Once()
                         .Then(ParserRuleType.SPropertyValuePath).AtMostOnce()
-                        .Then(TokenType.CloseRoundBracket).Once())
+                        .Then(TokenType.CloseRoundBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.SPropertyValuePath,
                     o => o
                         .With(ParserRuleType.SPropertyValuePathElement).Once()
-                        .Then(ParserRuleType.SPropertyValuePathSubsequentElement).ZeroOrMore())
+                        .Then(ParserRuleType.SPropertyValuePathSubsequentElement).Hoist().ZeroOrMore())
                 .Rule(
                     ParserRuleType.SPropertyValuePathElement,
                     o => o.With(TokenType.Item).Once(),
@@ -181,24 +185,24 @@
                 .Rule(
                     ParserRuleType.SPropertyValuePathSubsequentElement,
                     o => o
-                        .With(TokenType.Dot).Once()
+                        .With(TokenType.Dot).Exclude().Once()
                         .Then(ParserRuleType.SPropertyValuePathElement).Once())
                 .Rule(
                     ParserRuleType.SFilter,
                     o => o
-                        .With(TokenType.OpenCurlyBracket).Once()
+                        .With(TokenType.OpenCurlyBracket).Exclude().Once()
                         .Then(ParserRuleType.SFilterExpressionOr).Once()
-                        .Then(TokenType.CloseCurlyBracket).Once(),
+                        .Then(TokenType.CloseCurlyBracket).Exclude().Once(),
                     o => o
-                        .With(TokenType.OpenCurlyBracket).Once()
+                        .With(TokenType.OpenCurlyBracket).Exclude().Once()
                         .Then(ParserRuleType.SPropertyValuePath).Once()
-                        .Then(TokenType.Colon).Once()
+                        .Then(TokenType.Colon).Exclude().Once()
                         .Then(ParserRuleType.SFilterExpressionOr).Once()
-                        .Then(TokenType.CloseCurlyBracket).Once())
+                        .Then(TokenType.CloseCurlyBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.SFilterExpressionAnd,
                     o => o
-                        .With(ParserRuleType.SFilterExpressionElement).Once()
+                        .With(ParserRuleType.SFilterExpressionElement).Hoist().Once()
                         .Then(ParserRuleType.SFilterLogicExpressionAndRHS).Hoist().ZeroOrMore())
                 .Rule(
                     ParserRuleType.SFilterExpressionOr,
@@ -209,18 +213,18 @@
                     ParserRuleType.SFilterExpressionElement,
                     o => o.With(ParserRuleType.SFilterValue).Once(),
                     o => o
-                        .With(TokenType.OpenRoundBracket).Once()
+                        .With(TokenType.OpenRoundBracket).Exclude().Once()
                         .Then(ParserRuleType.SFilterExpressionOr).Once()
-                        .Then(TokenType.CloseRoundBracket).Once())
+                        .Then(TokenType.CloseRoundBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.SFilterLogicExpressionAndRHS,
                     o => o
-                        .With(TokenType.And).Once()
-                        .Then(ParserRuleType.SFilterExpressionElement).Once())
+                        .With(TokenType.And).Exclude().Once()
+                        .Then(ParserRuleType.SFilterExpressionElement).Hoist().Once())
                 .Rule(
                     ParserRuleType.SFilterLogicExpressionOrRHS,
                     o => o
-                        .With(TokenType.Or).Once()
+                        .With(TokenType.Or).Exclude().Once()
                         .Then(ParserRuleType.SFilterExpressionAnd).Once())
                 .Rule(
                     ParserRuleType.SFilterValue,

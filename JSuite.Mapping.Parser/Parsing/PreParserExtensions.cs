@@ -1,11 +1,12 @@
-﻿namespace JSuite.Mapping.Parser.Tokenizing
+﻿namespace JSuite.Mapping.Parser.Parsing
 {
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using JSuite.Mapping.Parser.Tokenizing;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
 
-    public static class TokenParserExtensions
+    public static class PreParserExtensions
     {
         private static readonly IList<TokenType> IgnoredTokenTypes = new[]
         {
@@ -13,6 +14,25 @@
             TokenType.Comment,
             TokenType.LineContinuation
         };
+
+        public static IEnumerable<Token<TokenType>> ApplyModifications(
+            this IEnumerable<Token<TokenType>> tokens)
+        {
+            foreach (var token in tokens)
+            {
+                if (token.Type == TokenType.QuotedItem)
+                {
+                    yield return
+                        new Token<TokenType>(
+                            TokenType.QuotedItem,
+                            token.Value.Substring(1, token.Value.Length - 2).Replace("\"\"", "\""));
+                }
+                else
+                {
+                    yield return token;
+                }
+            }
+        }
 
         public static IEnumerable<IList<Token<TokenType>>> ToStatements(
             this IEnumerable<Token<TokenType>> tokens)
