@@ -3,6 +3,7 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using JSuite.Mapping.Parser.Exceptions;
     using JSuite.Mapping.Parser.Tokenizing;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
 
@@ -82,8 +83,7 @@
                     if (!partialDefinitionsByName
                         .TryAdd(statement[0].Value, statement.Skip(2).ToList()))
                     {
-                        throw new ApplicationException(
-                            $"The partial {statement[0].Value} is defined multiple times.");
+                        throw PartialDefinitionException.DefinedMultipleTimes(statement[0].Value);
                     }
 
                     var dependencies = statement
@@ -96,10 +96,7 @@
                     if (dependencies.Count != 0)
                     {
                         if (dependencies.Contains(statement[0].Value))
-                        {
-                            throw new ApplicationException(
-                                $"Partial {statement[0].Value} depends on itself.");
-                        }
+                            throw PartialDefinitionException.DependsOnSelf(statement[0].Value);
 
                         partialDependencyPartialsByDependent.Add(
                             statement[0].Value,
@@ -136,7 +133,7 @@
             }
 
             if (partialDependencyPartialsByDependent.Count != 0)
-                throw new ApplicationException("Circular dependencies found in partial definitions.");
+                throw PartialDefinitionException.CircularDependencies();
 
             // Replace partials in statements
             foreach (var statementIndex in statementIndexesContainingPartials)
@@ -158,7 +155,7 @@
                 if (token.Type == TokenType.Partial)
                 {
                     if (!partialDefinitionsByName.TryGetValue(token.Value, out var partial))
-                        throw new ApplicationException($"No definition found for partial {token.Value}");
+                        throw PartialDefinitionException.Missing(token.Value);
 
                     foreach (var partialToken in partial)
                         yield return partialToken;
