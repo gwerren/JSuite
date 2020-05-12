@@ -1,6 +1,8 @@
 ﻿namespace JSuite.Mapping.Parser.Tokenizing.Generic
 {
+    using System;
     using System.Collections.Generic;
+    using System.Linq;
 
     public class TextIndexToLineColumnTranslator
     {
@@ -64,6 +66,19 @@
             }
 
             return default;
+        }
+
+        public IList<LineColumn> Translate(IEnumerable<int> indexes)
+        {
+            try
+            {
+                return indexes.Select(this.Translate).ToList();
+            }
+            catch (Exception)
+            {
+                /* Ignore exception since it is just trying to add context. */
+                return null;
+            }
         }
     }
 

@@ -13,6 +13,17 @@
     {
         public static IList<IParseTree<TokenType, ParserRuleType>> ParseScript(string script)
         {
+            TextIndexToLineColumnTranslator translator;
+            try
+            {
+                translator = new TextIndexToLineColumnTranslator(script);
+            }
+            catch (Exception)
+            {
+                /* Ignore exception since it is just trying to add context. */
+                translator = null;
+            }
+
             try
             {
                 return MappingTokenizer
@@ -21,19 +32,12 @@
                     .ToStatements()
                     .ApplyPartials()
                     .Parse()
+                    .Validate(translator)
                     .ToList();
             }
             catch (UnexpectedTokenException unexpectedToken)
             {
-                LineColumn? location = null;
-                try
-                {
-                    location = new TextIndexToLineColumnTranslator(script)
-                        .Translate(unexpectedToken.TokenStartIndex);
-                }
-                catch (Exception) { /* Ignore exception since it is just trying to add context. */ }
-
-                throw UnexpectedTokenWithPositionContextException.For(unexpectedToken, location);
+                throw UnexpectedTokenWithPositionContextException.For(unexpectedToken, translator);
             }
         }
     }

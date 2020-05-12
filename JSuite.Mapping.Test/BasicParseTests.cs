@@ -11,33 +11,34 @@ namespace JSuite.Mapping.Test
         [TestMethod]
         public void UnexpectedTokenTest()
         {
-            AssertEx.ThrowsException<UnexpectedTokenWithPositionContextException>(
+            AssertEx.ThrowsException(
                 () => Mapper.ParseScript("=A[B$(applicantId)]"),
-                ex =>
-                {
-                    Assert.AreEqual(1, ex.Line);
-                    Assert.AreEqual(4, ex.Column);
-                    Assert.AreEqual("B", ex.TokenValue);
-                });
+                CheckBadTokenException(1, 4, "B"));
 
-            AssertEx.ThrowsException<UnexpectedTokenWithPositionContextException>(
+            AssertEx.ThrowsException(
                 () => Mapper.ParseScript("=A[$(applicantId),B$(applicantId)]"),
-                ex =>
-                {
-                    Assert.AreEqual(1, ex.Line);
-                    Assert.AreEqual(19, ex.Column);
-                    Assert.AreEqual("B", ex.TokenValue);
-                });
+                CheckBadTokenException(1, 19, "B"));
 
-            AssertEx.ThrowsException<UnexpectedTokenWithPositionContextException>(
+            AssertEx.ThrowsException(
                 () => Mapper.ParseScript($"=A{Environment.NewLine}  [B$(applicantId)]"),
-                ex =>
-                {
-                    Assert.AreEqual(2, ex.Line);
-                    Assert.AreEqual(4, ex.Column);
-                    Assert.AreEqual("B", ex.TokenValue);
-                });
+                CheckBadTokenException(2, 4, "B"));
         }
+
+        private static Action<UnexpectedTokenWithPositionContextException> CheckBadTokenException(
+            int line,
+            int column,
+            string value)
+            => ex =>
+            {
+                Assert.IsNotNull(ex.Tokens);
+                Assert.AreEqual(1, ex.Tokens.Count);
+
+                var badToken = ex.Tokens[0];
+                Assert.IsTrue(badToken.Location.HasValue);
+                Assert.AreEqual(line, badToken.Location.Value.Line);
+                Assert.AreEqual(column, badToken.Location.Value.Column);
+                Assert.AreEqual(value, badToken.Value);
+            };
     }
 
     public static class AssertEx

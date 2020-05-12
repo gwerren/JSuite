@@ -1,8 +1,6 @@
 ﻿namespace JSuite.Mapping.Parser.Exceptions
 {
-    using System;
-
-    public class PartialDefinitionException : Exception
+    public class PartialDefinitionException : ParsingException
     {
         private PartialDefinitionException(string message) : base(message) { }
 

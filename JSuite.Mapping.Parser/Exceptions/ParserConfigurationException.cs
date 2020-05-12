@@ -1,8 +1,6 @@
 ﻿namespace JSuite.Mapping.Parser.Exceptions
 {
-    using System;
-
-    public class ParserConfigurationException : Exception
+    public class ParserConfigurationException : ParsingException
     {
         private ParserConfigurationException(string message) : base(message) { }
 

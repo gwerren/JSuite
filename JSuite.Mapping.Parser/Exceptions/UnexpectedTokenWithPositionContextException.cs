@@ -1,36 +1,24 @@
 ﻿namespace JSuite.Mapping.Parser.Exceptions
 {
+    using System;
+    using System.Collections.Generic;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
 
-    public class UnexpectedTokenWithPositionContextException : UnexpectedTokenException
+    public class UnexpectedTokenWithPositionContextException : BadTokensWithPositionContextException
     {
-        private UnexpectedTokenWithPositionContextException(
-            UnexpectedTokenException source,
-            int line,
-            int column)
-            : base(
-                $"Unexpected token type '{source.TokenType}' found at line {line}, column {column} with value '{source.TokenValue}'.",
-                source.TokenType,
-                source.TokenValue,
-                source.TokenStartIndex,
-                source)
-        {
-            this.Line = line;
-            this.Column = column;
-        }
-
-        public int Line { get; }
-
-        public int Column { get; }
+        protected UnexpectedTokenWithPositionContextException(
+            string messagePrefix,
+            IList<BadTokenWithPositionContext> tokens,
+            Exception innerException) : base(messagePrefix, tokens, innerException) { }
 
         public static UnexpectedTokenWithPositionContextException For(
             UnexpectedTokenException source,
-            LineColumn? location)
+            TextIndexToLineColumnTranslator translator)
         {
             return new UnexpectedTokenWithPositionContextException(
-                source,
-                location?.Line ?? 0,
-                location?.Column ?? 0);
+                "Unexpected token: ",
+                TokenDetails(source.Tokens, translator),
+                source);
         }
     }
 }
