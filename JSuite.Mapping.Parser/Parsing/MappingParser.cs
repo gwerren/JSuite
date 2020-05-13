@@ -171,7 +171,7 @@
                     o => o
                         .With(TokenType.OpenRoundBracket).Exclude().Once()
                         .Then(TokenType.Colon).Exclude().Once()
-                        .Then(ParserRuleType.SPropertyValuePath).AtMostOnce()
+                        .Then(ParserRuleType.SPropertyValuePath).Hoist().AtMostOnce()
                         .Then(TokenType.CloseRoundBracket).Exclude().Once())
                 .Rule(
                     ParserRuleType.SPropertyValuePath,
@@ -191,12 +191,6 @@
                     ParserRuleType.SFilter,
                     o => o
                         .With(TokenType.OpenCurlyBracket).Exclude().Once()
-                        .Then(ParserRuleType.SFilterExpressionOr).Once()
-                        .Then(TokenType.CloseCurlyBracket).Exclude().Once(),
-                    o => o
-                        .With(TokenType.OpenCurlyBracket).Exclude().Once()
-                        .Then(ParserRuleType.SPropertyValuePath).Once()
-                        .Then(TokenType.Colon).Exclude().Once()
                         .Then(ParserRuleType.SFilterExpressionOr).Once()
                         .Then(TokenType.CloseCurlyBracket).Exclude().Once())
                 .Rule(

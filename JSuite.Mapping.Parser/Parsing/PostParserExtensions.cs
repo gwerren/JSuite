@@ -49,7 +49,7 @@
             => ((IParseTreeRule<TokenType, ParserRuleType>)treeRoot).Elements
                 .Cast<IParseTreeRule<TokenType, ParserRuleType>>()
                 .Where(o => o.RuleType == mappingSide)
-                .Tokens()
+                .TokenNodes()
                 .Select(o => o.Token)
                 .Where(o => o.Type == TokenType.Variable)
                 .ToList();
