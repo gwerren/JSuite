@@ -33,22 +33,22 @@
             return this;
         }
 
-        public Parser<TToken, TRule> RuleMatchOneOf(
+        public Parser<TToken, TRule> RuleMatchOneTokenOf(
             TRule type,
             params TToken[] tokens)
         {
             return this.Rule(
                 type,
-                tokens.Select(t => (Action<IParserRuleConfigurator<TToken, TRule>>)(c => c.With(t).Once())).ToArray());
+                tokens.Select(t => (Action<IParserRuleConfigurator<TToken, TRule>>)(c => c.WithT(t).Once())).ToArray());
         }
 
-        public Parser<TToken, TRule> RuleMatchOneOf(
+        public Parser<TToken, TRule> RuleMatchOneRuleOf(
             TRule type,
             params TRule[] subRules)
         {
             return this.Rule(
                 type,
-                subRules.Select(s => (Action<IParserRuleConfigurator<TToken, TRule>>)(c => c.With(s).Once())).ToArray());
+                subRules.Select(s => (Action<IParserRuleConfigurator<TToken, TRule>>)(c => c.WithR(s).Once())).ToArray());
         }
 
         public Parser<TToken, TRule> WithRoot(TRule type)
@@ -118,14 +118,14 @@
 
             public RuleDefinition(TRule ruleType) { this.ruleType = ruleType; }
 
-            public IParserRuleTokenItemConfigurator<TToken, TRule> With(TToken type)
+            public IParserRuleTokenItemConfigurator<TToken, TRule> WithT(TToken type)
             {
                 var option = new RuleOption(this.ruleType);
                 this.options.Add(option);
                 return option.AddElement(type);
             }
 
-            public IParserRuleRuleItemConfigurator<TToken, TRule> With(TRule type)
+            public IParserRuleRuleItemConfigurator<TToken, TRule> WithR(TRule type)
             {
                 var option = new RuleOption(this.ruleType);
                 this.options.Add(option);
@@ -166,11 +166,11 @@
                 public RuleOption(TRule ruleType) { this.ruleType = ruleType; }
 
                 IParserRuleTokenItemConfigurator<TToken, TRule>
-                    IParserRuleContinuationConfigurator<TToken, TRule>.Then(TToken type)
+                    IParserRuleContinuationConfigurator<TToken, TRule>.ThenT(TToken type)
                     => this.AddElement(type);
 
                 IParserRuleRuleItemConfigurator<TToken, TRule>
-                    IParserRuleContinuationConfigurator<TToken, TRule>.Then(TRule type)
+                    IParserRuleContinuationConfigurator<TToken, TRule>.ThenR(TRule type)
                     => this.AddElement(type);
 
                 public IParserRuleTokenItemConfigurator<TToken, TRule> AddElement(TToken type)

@@ -2,16 +2,16 @@
 {
     public interface IParserRuleConfigurator<TToken, TRule>
     {
-        IParserRuleTokenItemConfigurator<TToken, TRule> With(TToken tokenType);
+        IParserRuleTokenItemConfigurator<TToken, TRule> WithT(TToken tokenType);
 
-        IParserRuleRuleItemConfigurator<TToken, TRule> With(TRule ruleType);
+        IParserRuleRuleItemConfigurator<TToken, TRule> WithR(TRule ruleType);
     }
 
     public interface IParserRuleContinuationConfigurator<TToken, TRule>
     {
-        IParserRuleTokenItemConfigurator<TToken, TRule> Then(TToken tokenType);
+        IParserRuleTokenItemConfigurator<TToken, TRule> ThenT(TToken tokenType);
 
-        IParserRuleRuleItemConfigurator<TToken, TRule> Then(TRule ruleType);
+        IParserRuleRuleItemConfigurator<TToken, TRule> ThenR(TRule ruleType);
     }
 
     public interface IParserRuleItemConfigurator<TToken, TRule>
