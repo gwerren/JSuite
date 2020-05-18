@@ -1,14 +1,13 @@
 ﻿namespace JSuite.Mapping.Parser.Exceptions
 {
-    using System.Collections.Generic;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
 
-    public class UnexpectedTokenException : BadTokensException
+    public class UnexpectedTokenException : BadTokensWithPositionContextException
     {
-        protected UnexpectedTokenException(string messagePrefix, IList<BadToken> tokens)
-            : base(messagePrefix, tokens, null) { }
+        private UnexpectedTokenException(string messagePrefix, BadTokenWithPositionContext token)
+            : base(messagePrefix, new[] { token }, null) { }
 
-        public static UnexpectedTokenException For<TToken>(Token<TToken> token)
-            => new UnexpectedTokenException("Unexpected token: ", new[] { BadToken.Create(token) });
+        public static UnexpectedTokenException For<TToken>(Token<TToken> token, ITextIndexHelper translator)
+            => new UnexpectedTokenException("Unexpected token: ", TokenDetails(token, translator));
     }
 }

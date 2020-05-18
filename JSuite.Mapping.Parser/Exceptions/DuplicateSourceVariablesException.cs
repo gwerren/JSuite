@@ -11,7 +11,7 @@
 
         public static DuplicateSourceVariablesException For<TToken>(
             IList<Token<TToken>> tokens,
-            TextIndexToLineColumnTranslator translator)
+            ITextIndexHelper translator)
             => new DuplicateSourceVariablesException(
                 "Duplicate variable definitions found in source: ",
                 TokenDetails(tokens, translator));

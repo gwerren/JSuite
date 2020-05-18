@@ -1,8 +1,11 @@
 namespace JSuite.Mapping.Test
 {
     using System;
-    using JSuite.Mapping.Parser;
+    using System.Linq;
     using JSuite.Mapping.Parser.Exceptions;
+    using JSuite.Mapping.Parser.Parsing;
+    using JSuite.Mapping.Parser.Tokenizing;
+    using JSuite.Mapping.Parser.Tokenizing.Generic;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -12,19 +15,30 @@ namespace JSuite.Mapping.Test
         public void UnexpectedTokenTest()
         {
             AssertEx.ThrowsException(
-                () => Mapper.ParseScript("=A[B$(applicantId)]"),
+                () => ParseScript("=A[B$(applicantId)]"),
                 CheckBadTokenException(1, 4, "B"));
 
             AssertEx.ThrowsException(
-                () => Mapper.ParseScript("=A[$(applicantId),B$(applicantId)]"),
+                () => ParseScript("=A[$(applicantId),B$(applicantId)]"),
                 CheckBadTokenException(1, 19, "B"));
 
             AssertEx.ThrowsException(
-                () => Mapper.ParseScript($"=A{Environment.NewLine}  [B$(applicantId)]"),
+                () => ParseScript($"=A{Environment.NewLine}  [B$(applicantId)]"),
                 CheckBadTokenException(2, 4, "B"));
         }
 
-        private static Action<UnexpectedTokenWithPositionContextException> CheckBadTokenException(
+        private static void ParseScript(string script)
+        {
+            var statements = MappingTokenizer
+                .Tokenize(script)
+                .ApplyModifications()
+                .ToStatements()
+                .ApplyPartials()
+                .Parse(new TextIndexHelper(script))
+                .ToList();
+        }
+
+        private static Action<UnexpectedTokenException> CheckBadTokenException(
             int line,
             int column,
             string value)

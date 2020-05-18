@@ -1,4 +1,4 @@
-﻿namespace JSuite.Mapping.Parser.Executing
+namespace JSuite.Mapping.Parser.Executing
 {
     using System;
     using System.Collections.Generic;
@@ -17,7 +17,7 @@
 
     public delegate IEnumerable<ISourceMatch> ExtractFromSource(JObject sourceObject);
 
-    public static class SourceExtractorBuilder
+	public static class SourceExtractorBuilder
     {
         public static ExtractFromSource SourceExtractor(
             this IParseTree<TokenType, ParserRuleType> mapping)

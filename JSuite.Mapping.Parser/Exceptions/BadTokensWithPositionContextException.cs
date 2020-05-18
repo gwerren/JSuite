@@ -20,33 +20,36 @@
 
         protected static IList<BadTokenWithPositionContext> TokenDetails<TToken>(
             IList<Token<TToken>> tokens,
-            TextIndexToLineColumnTranslator translator)
+            ITextIndexHelper translator)
         {
             var details = new BadTokenWithPositionContext[tokens.Count];
             for (int i = 0; i < details.Length; ++i)
-            {
-                var token = tokens[i];
-                var location = translator?.Translate(token.StartIndex);
-
-                details[i] = new BadTokenWithPositionContext(
-                    token.Type.ToString(),
-                    token.Value,
-                    token.StartIndex,
-                    location);
-            }
+                details[i] = TokenDetails(tokens[i], translator);
 
             return details;
         }
 
+        protected static BadTokenWithPositionContext TokenDetails<TToken>(
+            Token<TToken> token,
+            ITextIndexHelper translator)
+        {
+                var location = translator?.LinePosition(token.StartIndex);
+                return new BadTokenWithPositionContext(
+                    token.Type.ToString(),
+                    token.Value,
+                    token.StartIndex,
+                    location);
+        }
+
         protected static IList<BadTokenWithPositionContext> TokenDetails(
             IList<BadToken> tokens,
-            TextIndexToLineColumnTranslator translator)
+            ITextIndexHelper translator)
         {
             var details = new BadTokenWithPositionContext[tokens.Count];
             for (int i = 0; i < details.Length; ++i)
             {
                 var baseDetails = tokens[i];
-                var location = translator?.Translate(baseDetails.StartIndex);
+                var location = translator?.LinePosition(baseDetails.StartIndex);
 
                 details[i] = new BadTokenWithPositionContext(baseDetails, location);
             }
@@ -54,7 +57,7 @@
             return details;
         }
 
-        protected static string TokenDetailsString(IList<BadTokenWithPositionContext> details)
+        private static string TokenDetailsString(IList<BadTokenWithPositionContext> details)
             => string.Join(
                 ", ",
                 details.Select(

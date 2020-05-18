@@ -11,7 +11,7 @@
 
         public static UndefinedVariablesException For<TToken>(
             IList<Token<TToken>> tokens,
-            TextIndexToLineColumnTranslator translator)
+            ITextIndexHelper translator)
             => new UndefinedVariablesException(
                 "Undefined variables found in target: ",
                 TokenDetails(tokens, translator));

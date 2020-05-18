@@ -83,7 +83,7 @@
             return this;
         }
 
-        public IParseTree<TToken, TRule> Parse(IList<Token<TToken>> tokens)
+        public IParseTree<TToken, TRule> Parse(IList<Token<TToken>> tokens, ITextIndexHelper translator)
         {
             if (!this.configCompleted)
                 throw ParserConfigurationException.NotCompleted();
@@ -97,7 +97,7 @@
                 if (parseTree.MaxMatchedNextTokenIndex < 0 || parseTree.MaxMatchedNextTokenIndex > tokens.Count)
                     throw new ApplicationException("An unexpected error was encountered.");
 
-                throw UnexpectedTokenException.For(tokens[parseTree.MaxMatchedNextTokenIndex]);
+                throw UnexpectedTokenException.For(tokens[parseTree.MaxMatchedNextTokenIndex], translator);
             }
 
             return parseTree.TreeItems;

@@ -1,43 +1,56 @@
 ﻿namespace JSuite.Mapping.Parser
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
-    using JSuite.Mapping.Parser.Exceptions;
+    using JSuite.Mapping.Parser.Executing;
     using JSuite.Mapping.Parser.Parsing;
     using JSuite.Mapping.Parser.Parsing.Generic;
     using JSuite.Mapping.Parser.Tokenizing;
     using JSuite.Mapping.Parser.Tokenizing.Generic;
+    using Newtonsoft.Json.Linq;
 
-    public static class Mapper
+    public class Mapper
     {
-        public static IList<IParseTree<TokenType, ParserRuleType>> ParseScript(string script)
+        private readonly IList<MappingExecutor> mappings;
+
+        public Mapper(string script)
         {
-            TextIndexToLineColumnTranslator translator;
-            try
+            this.mappings = ParseScript(script).Select(o => new MappingExecutor(o)).ToList();
+        }
+
+        public void Map(JObject target, JObject source)
+        {
+            foreach (var mapping in this.mappings)
+                mapping.Execute(target, source);
+        }
+
+        private static IEnumerable<IParseTree<TokenType, ParserRuleType>> ParseScript(string script)
+        {
+            var translator = new TextIndexHelper(script);
+            return MappingTokenizer
+                .Tokenize(script)
+                .ApplyModifications()
+                .ToStatements()
+                .ApplyPartials()
+                .Parse(translator)
+                .Validate(translator);
+        }
+
+        private class MappingExecutor
+        {
+            private readonly ExtractFromSource extract;
+            private readonly UpdateTarget update;
+
+            public MappingExecutor(IParseTree<TokenType, ParserRuleType> mappingDefinition)
             {
-                translator = new TextIndexToLineColumnTranslator(script);
-            }
-            catch (Exception)
-            {
-                /* Ignore exception since it is just trying to add context. */
-                translator = null;
+                this.extract = mappingDefinition.SourceExtractor();
+                this.update = mappingDefinition.TargetUpdater();
             }
 
-            try
+            public void Execute(JObject target, JObject source)
             {
-                return MappingTokenizer
-                    .Tokenize(script)
-                    .ApplyModifications()
-                    .ToStatements()
-                    .ApplyPartials()
-                    .Parse()
-                    .Validate(translator)
-                    .ToList();
-            }
-            catch (UnexpectedTokenException unexpectedToken)
-            {
-                throw UnexpectedTokenWithPositionContextException.For(unexpectedToken, translator);
+                foreach (var extracted in this.extract(source))
+                    this.update(target, extracted);
             }
         }
     }

@@ -15,13 +15,10 @@
         private static readonly Parser<TokenType, ParserRuleType> Parser
             = new Parser<TokenType, ParserRuleType>().Configure();
 
-        public static IParseTree<TokenType, ParserRuleType> Parse(
-            this IList<Token<TokenType>> tokens)
-            => Parser.Parse(tokens);
-
         public static IEnumerable<IParseTree<TokenType, ParserRuleType>> Parse(
-            this IEnumerable<IList<Token<TokenType>>> tokens)
-            => tokens.Select(Parser.Parse);
+            this IEnumerable<IList<Token<TokenType>>> tokens,
+            ITextIndexHelper translator)
+            => tokens.Select(o => Parser.Parse(o, translator));
 
         private static Parser<TokenType, TRule> RuleMatchNoneOf<TRule>(
             this Parser<TokenType, TRule> parser,

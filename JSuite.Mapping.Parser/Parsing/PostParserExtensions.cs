@@ -11,7 +11,7 @@
     {
         public static IEnumerable<IParseTree<TokenType, ParserRuleType>> Validate(
             this IEnumerable<IParseTree<TokenType, ParserRuleType>> parseTrees,
-            TextIndexToLineColumnTranslator translator)
+            ITextIndexHelper translator)
         {
             foreach (var tree in parseTrees)
             {
@@ -36,7 +36,7 @@
                 var sourceVariableNames = sourceVariables.Select(o => o.Value).ToHashSet();
                 var undefinedVariables = targetVariables.Where(o => !sourceVariableNames.Contains(o.Value)).ToList();
                 if (undefinedVariables.Count != 0)
-                    throw DuplicateSourceVariablesException.For(undefinedVariables, translator);
+                    throw UndefinedVariablesException.For(undefinedVariables, translator);
 
                 // Return the tree.
                 yield return tree;
