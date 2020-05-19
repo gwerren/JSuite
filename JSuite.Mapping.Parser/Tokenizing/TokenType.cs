@@ -14,6 +14,7 @@
         Or,
         Equals,
         Dot,
+        Array,
         OpenSquareBracket,
         CloseSquareBracket,
         OpenCurlyBracket,

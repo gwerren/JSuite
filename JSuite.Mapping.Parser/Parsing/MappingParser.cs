@@ -64,6 +64,7 @@
                     ParserRuleType.TNode,
                     o => o
                         .WithR(ParserRuleType.TPathElement).Once()
+                        .ThenT(TokenType.Array).AtMostOnce()
                         .ThenR(ParserRuleType.TNodeModifiers).Hoist().Once())
                 .Rule(
                     ParserRuleType.TPathElement,
@@ -75,6 +76,7 @@
                         .WithT(TokenType.OpenSquareBracket).Exclude().Once()
                         .ThenR(ParserRuleType.TIndexedNodeContent).ZeroOrMore()
                         .ThenT(TokenType.CloseSquareBracket).Exclude().Once()
+                        .ThenT(TokenType.Array).AtMostOnce()
                         .ThenR(ParserRuleType.TNodeModifiers).Hoist().Once())
                 .RuleMatchNoneOf(
                     ParserRuleType.TIndexedNodeContent,

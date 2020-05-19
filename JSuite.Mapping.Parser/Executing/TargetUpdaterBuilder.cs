@@ -34,6 +34,8 @@
             return new Updater(updater).Update;
         }
 
+        private static UpdatedItem AsUpdated(this JToken item) => new UpdatedItem(item);
+        
         private abstract class NodeUpdaterBase
         {
             private readonly IList<PropertyValueUpdaterBase> propertySetters;
@@ -67,6 +69,12 @@
                             .ToList());
                 }
 
+                // Find whether this should be an array node
+                this.IsArray = node.Elements
+                    .Any(
+                        o => o is IParseTreeToken<TokenType, ParserRuleType> token
+                            && token.Token.Type == TokenType.Array);
+
                 // Handle property value assignment
                 var assignments = node.Rule(ParserRuleType.TPropertyValue);
                 if (assignments != null)
@@ -95,27 +103,21 @@
                         : Conditional.IfExists;
             }
 
+            protected bool IsArray { get; }
+
             public bool Update(JObject target, ISourceMatch source)
             {
-                if (this.DoUpdate(target, source))
+                var updated = this.DoUpdate(target, source);
+                if (updated.WasUpdated && this.propertySetters != null && updated.Item is JObject updatedObj)
                 {
-                    if (this.propertySetters != null)
-                    {
-                        var targetProperty = target.Property(this.GetPropertyName(source));
-                        if (targetProperty != null && targetProperty.Value is JObject targetObj)
-                        {
-                            foreach (var setter in this.propertySetters)
-                                setter.Set(targetObj, source);
-                        }
-                    }
-
-                    return true;
+                    foreach (var setter in this.propertySetters)
+                        setter.Set(updatedObj, source);
                 }
 
-                return false;
+                return updated.WasUpdated;
             }
 
-            protected abstract bool DoUpdate(JObject target, ISourceMatch source);
+            protected abstract UpdatedItem DoUpdate(JObject target, ISourceMatch source);
 
             protected string GetPropertyName(ISourceMatch source) => this.propertyName.Get(source);
 
@@ -169,29 +171,45 @@
                 NodeUpdaterBase next)
                 : base(node) { this.next = next; }
 
-            protected override bool DoUpdate(JObject target, ISourceMatch source)
+            protected override UpdatedItem DoUpdate(JObject target, ISourceMatch source)
             {
                 var propertyName = this.GetPropertyName(source);
                 var targetProperty = target.Property(propertyName);
                 if (!this.ShouldMap(targetProperty != null))
-                    return false;
+                    return UpdatedItem.Notupdated;
 
-                if (targetProperty != null && targetProperty.Value is JObject targetObj)
+                if (!this.IsArray && targetProperty != null && targetProperty.Value is JObject targetObj)
                 {
-                    // If the target already has the object then update it
-                    return this.next.Update(targetObj, source);
+                    return this.next.Update(targetObj, source)
+                        ? targetObj.AsUpdated()
+                        : UpdatedItem.Notupdated;
                 }
 
                 // If the target does not have an object to update then create it
                 // and try to map to it, if that succeeds then assign to the target
+                // either as the object or into the array (if this is an array)
                 targetObj = new JObject();
                 if (this.next.Update(targetObj, source))
                 {
-                    target[propertyName] = targetObj;
-                    return true;
+                    if (!this.IsArray)
+                    {
+                        target[propertyName] = targetObj;
+                    }
+                    else
+                    {
+                        if (targetProperty == null || !(targetProperty.Value is JArray targetArr))
+                        {
+                            targetArr = new JArray();
+                            target[propertyName] = targetArr;
+                        }
+                        
+                        targetArr.Add(targetObj);
+                    }
+
+                    return targetObj.AsUpdated();
                 }
 
-                return false;
+                return UpdatedItem.Notupdated;
             }
         }
 
@@ -201,14 +219,27 @@
                 IParseTreeRule<TokenType, ParserRuleType> node)
                 : base(node) { }
 
-            protected override bool DoUpdate(JObject target, ISourceMatch source)
+            protected override UpdatedItem DoUpdate(JObject target, ISourceMatch source)
             {
                 var propertyName = this.GetPropertyName(source);
                 if (!this.ShouldMap(target.ContainsKey(propertyName)))
-                    return false;
+                    return UpdatedItem.Notupdated;
 
-                Merging.MergeToProperty(target, propertyName, source.Element);
-                return true;
+                if (this.IsArray)
+                {
+                    var targetProperty = target.Property(propertyName);
+                    if (targetProperty == null || !(targetProperty.Value is JArray targetArray))
+                    {
+                        targetArray = new JArray();
+                        target[propertyName] = targetArray;
+                    }
+
+                    var targetElement = source.Element.DeepClone();
+                    targetArray.Add(targetElement);
+                    return targetElement.AsUpdated();
+                }
+                
+                return Merging.MergeToProperty(target, propertyName, source.Element).AsUpdated();
             }
         }
 
@@ -286,26 +317,40 @@
                 MergeObjects(target, sourceObj);
             }
 
-            public static void MergeToProperty(
+            public static JToken MergeToProperty(
                 JObject targetObject,
                 string targetPropertyName,
                 JToken sourceValue)
             {
                 var targetProperty = targetObject.Property(targetPropertyName);
-                if (targetProperty != null
-                    && targetProperty.Value is JObject targetObj
-                    && sourceValue is JObject sourceObj)
+                if (targetProperty != null)
                 {
-                    // If the property exists in the target and both target and
-                    // source properties are objects then we need to merge them
-                    MergeObjects(targetObj, sourceObj);
+                    if (targetProperty.Value is JObject targetObj
+                        && sourceValue is JObject sourceObj)
+                    {
+                        // If the property exists in the target and both target and
+                        // source properties are objects then we need to merge them
+                        MergeObjects(targetObj, sourceObj);
+                        return targetObj;
+                    }
+
+                    if (targetProperty.Value is JArray targetArr
+                        && sourceValue is JArray sourceArr)
+                    {
+                        // If the property exists in the target and both target and
+                        // source properties are arrays then we need to merge them
+                        foreach (var element in sourceArr)
+                            targetArr.Add(element);
+                        
+                        return targetArr;
+                    }
                 }
-                else
-                {
-                    // If the property does not exist in the target or either target
-                    // or source is not an object then simply copy source to target
-                    targetObject[targetPropertyName] = sourceValue.DeepClone();
-                }
+
+                // If the property does not exist in the target or target and source are
+                // not either both objects or arrays then simply copy source to target
+                var updated = sourceValue.DeepClone();
+                targetObject[targetPropertyName] = updated;
+                return updated;
             }
 
             private static void MergeObjects(JObject target, JObject source)
@@ -313,6 +358,21 @@
                 foreach (var sourceProperty in source.Properties())
                     MergeToProperty(target, sourceProperty.Name, sourceProperty.Value);
             }
+        }
+
+        private readonly struct UpdatedItem
+        {
+            public UpdatedItem(JToken item)
+            {
+                this.WasUpdated = true;
+                this.Item = item;
+            }
+
+            public bool WasUpdated { get; }
+
+            public JToken Item { get; }
+
+            public static UpdatedItem Notupdated => new UpdatedItem();
         }
     }
 }

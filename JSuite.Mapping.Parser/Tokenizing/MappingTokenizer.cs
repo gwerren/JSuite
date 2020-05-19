@@ -19,6 +19,7 @@
                 .Token(TokenType.Or, @"\|\|")
                 .Token(TokenType.Equals, "=")
                 .Token(TokenType.Dot, @"\.")
+                .Token(TokenType.Array, @"\[\]")
                 .Token(TokenType.OpenSquareBracket, @"\[")
                 .Token(TokenType.CloseSquareBracket, @"\]")
                 .Token(TokenType.OpenCurlyBracket, "{")
